@@ -1,13 +1,13 @@
+from __future__ import print_function
 import pprint
 import sys
 import unittest
 
 import numpy as np
 from PIL import Image
+from visualdl import LogReader, LogWriter
 
 pprint.pprint(sys.path)
-
-from visualdl import LogWriter, LogReader
 
 
 class StorageTest(unittest.TestCase):
@@ -16,13 +16,13 @@ class StorageTest(unittest.TestCase):
         self.writer = LogWriter(self.dir, sync_cycle=1).as_mode("train")
 
     def test_scalar(self):
-        print 'test write'
+        print('test write')
         scalar = self.writer.scalar("model/scalar/min")
         # scalar.set_caption("model/scalar/min")
         for i in range(10):
             scalar.add_record(i, float(i))
 
-        print 'test read'
+        print('test read')
         self.reader = LogReader(self.dir)
         with self.reader.mode("train") as reader:
             scalar = reader.scalar("model/scalar/min")
@@ -30,10 +30,10 @@ class StorageTest(unittest.TestCase):
             records = scalar.records()
             ids = scalar.ids()
             self.assertTrue(
-                np.equal(records, [float(i) for i in range(10)]).all())
+                np.equal(records, [float(i) for i in range(10 - 1)]).all())
             self.assertTrue(np.equal(ids, [float(i) for i in range(10)]).all())
-            print 'records', records
-            print 'ids', ids
+            print('records', records)
+            print('ids', ids)
 
     def test_image(self):
         tag = "layer1/layer2/image0"
@@ -42,9 +42,9 @@ class StorageTest(unittest.TestCase):
         num_samples = 100
         shape = [10, 10, 3]
 
-        for pass_ in xrange(num_passes):
+        for pass_ in range(num_passes):
             image_writer.start_sampling()
-            for ins in xrange(num_samples):
+            for ins in range(num_samples):
                 data = np.random.random(shape) * 256
                 data = np.ndarray.flatten(data)
                 image_writer.add_sample(shape, list(data))
@@ -69,9 +69,9 @@ class StorageTest(unittest.TestCase):
         '''
         check whether the storage will keep image data consistent
         '''
-        print 'check image'
+        print('check image')
         tag = "layer1/check/image1"
-        image_writer = self.writer.image(tag, 10, 1)
+        image_writer = self.writer.image(tag, 10)
 
         image = Image.open("./dog.jpg")
         shape = [image.size[1], image.size[0], 3]
@@ -82,6 +82,7 @@ class StorageTest(unittest.TestCase):
 
             image_writer.start_sampling()
             image_writer.add_sample(shape, list(origin_data))
+            image_writer.finish_sampling()
 
             # read and check whether the original image will be displayed
             image_reader = reader.image(tag)
@@ -91,8 +92,8 @@ class StorageTest(unittest.TestCase):
 
             PIL_image_shape = (shape[0] * shape[1], shape[2])
             data = np.array(data, dtype='uint8').reshape(PIL_image_shape)
-            print 'origin', origin_data.flatten()
-            print 'data', data.flatten()
+            print('origin', origin_data.flatten())
+            print('data', data.flatten())
             image = Image.fromarray(data.reshape(shape))
             # manully check the image and found that nothing wrong with the image storage.
             # image.show()

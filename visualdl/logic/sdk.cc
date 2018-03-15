@@ -1,3 +1,17 @@
+/* Copyright (c) 2017 VisualDL Authors. All Rights Reserve.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. */
+
 #include "visualdl/logic/sdk.h"
 
 #include <cstdio>
@@ -16,6 +30,12 @@ namespace visualdl {
 std::string g_log_dir;
 
 LogWriter LogWriter::AsMode(const std::string& mode) {
+  for (auto ch : "%/") {
+    CHECK(mode.find(ch) == std::string::npos)
+        << "character " << ch
+        << " is a reserved word, it is not allowed in mode.";
+  }
+
   LogWriter writer = *this;
   storage_.AddMode(mode);
   writer.mode_ = mode;
@@ -23,7 +43,9 @@ LogWriter LogWriter::AsMode(const std::string& mode) {
 }
 
 Tablet LogWriter::AddTablet(const std::string& tag) {
-  // TODO(ChunweiYan) add string check here.
+  CHECK(tag.find("%") == std::string::npos)
+      << "character % is a reserved word, it is not allowed in tag.";
+
   auto tmp = mode_ + "/" + tag;
   string::TagEncode(tmp);
   auto res = storage_.AddTablet(tmp);
@@ -87,7 +109,7 @@ namespace components {
 template <typename T>
 std::vector<T> ScalarReader<T>::records() const {
   std::vector<T> res;
-  for (int i = 0; i < reader_.total_records(); i++) {
+  for (int i = 0; i < total_records(); i++) {
     res.push_back(reader_.record(i).data(0).template Get<T>());
   }
   return res;
@@ -222,7 +244,7 @@ void Image::SetSample(int index,
     CHECK_EQ(std::remove(old_path.c_str()), 0) << "delete old binary record "
                                                << old_path << " failed";
   }
-  entry.SetRaw(brcd.hash());
+  entry.SetRaw(brcd.filename());
 
   static_assert(
       !is_same_type<value_t, shape_t>::value,
@@ -246,10 +268,10 @@ ImageReader::ImageRecord ImageReader::record(int offset, int index) {
   ImageRecord res;
   auto record = reader_.record(offset);
   auto entry = record.data(index);
-  auto data_hash = entry.GetRaw();
+  auto filename = entry.GetRaw();
   CHECK(!g_log_dir.empty())
       << "g_log_dir should be set in LogReader construction";
-  BinaryRecordReader brcd(GenBinaryRecordDir(g_log_dir), data_hash);
+  BinaryRecordReader brcd(GenBinaryRecordDir(g_log_dir), filename);
 
   std::transform(brcd.data.begin(),
                  brcd.data.end(),
@@ -280,7 +302,7 @@ void Histogram<T>::AddRecord(int step, const std::vector<T>& data) {
 
 template <typename T>
 HistogramRecord<T> HistogramReader<T>::record(int i) {
-  CHECK_LT(i, reader_.total_records());
+  CHECK_LT(i, num_records());
   auto r = reader_.record(i);
   auto d = r.data(0);
   auto boundaries_str = d.GetRaw();

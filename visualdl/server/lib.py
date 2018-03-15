@@ -1,12 +1,16 @@
-import pprint
+from __future__ import absolute_import
 import re
+import sys
 import time
-import urllib
 from tempfile import NamedTemporaryFile
-
 import numpy as np
 from PIL import Image
-from log import logger
+from .log import logger
+
+try:
+    from urllib.parse import urlencode
+except Exception:
+    from urllib import urlencode
 
 
 def get_modes(storage):
@@ -42,7 +46,7 @@ def get_scalar(storage, mode, tag, num_records=300):
         ids = scalar.ids()
         timestamps = scalar.timestamps()
 
-        data = zip(timestamps, ids, records)
+        data = list(zip(timestamps, ids, records))
         data_size = len(data)
 
         if data_size <= num_records:
@@ -60,7 +64,11 @@ def get_scalar(storage, mode, tag, num_records=300):
             data_idx = int(span_offset * span)
 
         sampled_data.append(data[0])
-        return sampled_data[::-1]
+        res = sampled_data[::-1]
+        # TODO(Superjomn) some bug here, sometimes there are zero here.
+        if res[-1] == 0.:
+            res = res[:-1]
+        return res
 
 
 def get_image_tags(storage):
@@ -73,7 +81,7 @@ def get_image_tags(storage):
                 result[mode] = {}
                 for tag in tags:
                     image = reader.image(tag)
-                    for i in xrange(max(1, image.num_samples())):
+                    for i in range(max(1, image.num_samples())):
                         caption = tag if image.num_samples(
                         ) <= 1 else '%s/%d' % (tag, i)
                         result[mode][caption] = {
@@ -85,7 +93,6 @@ def get_image_tags(storage):
 
 
 def get_image_tag_steps(storage, mode, tag):
-    print 'image_tag_steps,mode,tag:', mode, tag
     # remove suffix '/x'
     res = re.search(r".*/([0-9]+$)", tag)
     sample_index = 0
@@ -102,9 +109,10 @@ def get_image_tag_steps(storage, mode, tag):
         record = image.record(step_index, sample_index)
         shape = record.shape()
         # TODO(ChunweiYan) remove this trick, some shape will be empty
-        if not shape: continue
+        if not shape:
+            continue
         try:
-            query = urllib.urlencode({
+            query = urlencode({
                 'sample': 0,
                 'index': step_index,
                 'tag': origin_tag,
@@ -117,7 +125,7 @@ def get_image_tag_steps(storage, mode, tag):
                 'wall_time': image.timestamp(step_index),
                 'query': query,
             })
-        except:
+        except Exception:
             logger.error("image sample out of range")
 
     return res
@@ -127,6 +135,7 @@ def get_invididual_image(storage, mode, tag, step_index, max_size=80):
     with storage.mode(mode) as reader:
         res = re.search(r".*/([0-9]+$)", tag)
         # remove suffix '/x'
+        offset = 0
         if res:
             offset = int(res.groups()[0])
             tag = tag[:tag.rfind('/')]
@@ -155,11 +164,11 @@ def get_histogram(storage, mode, tag, num_samples=100):
         histogram = reader.histogram(tag)
         res = []
 
-        for i in xrange(histogram.num_records()):
+        for i in range(histogram.num_records()):
             try:
                 # some bug with protobuf, some times may overflow
                 record = histogram.record(i)
-            except:
+            except Exception:
                 continue
 
             res.append([])
@@ -169,12 +178,10 @@ def get_histogram(storage, mode, tag, num_samples=100):
             py_record.append([])
 
             data = py_record[-1]
-            for j in xrange(record.num_instances()):
+            for j in range(record.num_instances()):
                 instance = record.instance(j)
                 data.append(
-                    [instance.left(),
-                     instance.right(),
-                     instance.frequency()])
+                    [instance.left(), instance.right(), instance.frequency()])
         if len(res) < num_samples:
             return res
 
@@ -198,8 +205,23 @@ def retry(ntimes, function, time2sleep, *args, **kwargs):
     try to execute `function` `ntimes`, if exception catched, the thread will
     sleep `time2sleep` seconds.
     '''
-    for i in xrange(ntimes):
+    for i in range(ntimes):
         try:
             return function(*args, **kwargs)
-        except:
+        except Exception:
+            error_info = '\n'.join(map(str, sys.exc_info()))
+            logger.error("Unexpected error: %s" % error_info)
             time.sleep(time2sleep)
+
+
+def cache_get(cache):
+    def _handler(key, func, *args, **kwargs):
+        data = cache.get(key)
+        if data is None:
+            logger.warning('update cache %s' % key)
+            data = func(*args, **kwargs)
+            cache.set(key, data)
+            return data
+        return data
+
+    return _handler

@@ -1,3 +1,17 @@
+/* Copyright (c) 2017 VisualDL Authors. All Rights Reserve.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License. */
+
 #include "visualdl/logic/sdk.h"
 
 #include <gtest/gtest.h>
@@ -14,6 +28,7 @@ TEST(Scalar, write) {
   auto tablet = writer.AddTablet("scalar0");
   components::Scalar<int> scalar(tablet);
   scalar.AddRecord(0, 12);
+  scalar.AddRecord(1, 13);
   auto tablet1 = writer.AddTablet("model/layer/min");
   components::Scalar<float> scalar1(tablet1);
   scalar1.SetCaption("customized caption");
@@ -25,9 +40,11 @@ TEST(Scalar, write) {
   auto scalar_reader = components::ScalarReader<int>(std::move(tablet_reader));
   auto captioin = scalar_reader.caption();
   ASSERT_EQ(captioin, "train");
-  ASSERT_EQ(scalar_reader.total_records(), 1);
+  // reference PR#225
+  ASSERT_EQ(scalar_reader.total_records(), 2 - 1);
   auto record = scalar_reader.records();
-  ASSERT_EQ(record.size(), 1);
+  // reference PR#225
+  ASSERT_EQ(record.size(), 2 - 1);
   // check the first entry of first record
   ASSERT_EQ(record.front(), 12);
 

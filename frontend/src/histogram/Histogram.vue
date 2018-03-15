@@ -2,25 +2,25 @@
     <div class="visual-dl-page-container">
         <div class="visual-dl-page-left">
             <ui-chart-page
-                expand="{{true}}"
-                config="{{config}}"
-                runsItems="{{runsItems}}"
-                tagList="{{filteredTagsList}}"
-                title="Tags matching {{config.groupNameReg}}"
+                :config="config"
+                :runsItems="runsItems"
+                :tagList="filteredTagsList"
+                :title="'Tags matching ' + config.groupNameReg"
             ></ui-chart-page>
             <ui-chart-page
-                s-for="item in groupedTags"
-                config="{{config}}"
-                runsItems="{{runsItems}}"
-                tagList="{{item.tags}}"
-                title="{{item.group}}"
+                v-for="item in groupedTags"
+                :key="item.group"
+                :config="config"
+                :runsItems="runsItems"
+                :tagList="item.tags"
+                :title="item.group"
             ></ui-chart-page>
         </div>
         <div class="visual-dl-page-right">
             <div class="visual-dl-page-config-container">
                 <ui-config
-                    runsItems="{{runsItems}}"
-                    config="{=config=}"
+                    :runsItems="runsItems"
+                    :config="config"
                 ></ui-config>
             </div>
         </div>
@@ -29,18 +29,19 @@
 
 <script>
 import {getPluginHistogramsTags, getRuns} from '../service';
-import config from './ui/config';
-import chartPage from './ui/chartPage';
+import Config from './ui/Config';
+import ChartPage from './ui/ChartPage';
 import {debounce, flatten, uniq} from 'lodash';
 import autoAdjustHeight from '../common/util/autoAdjustHeight';
+
 export default {
     components: {
-        'ui-config': config,
-        'ui-chart-page': chartPage
+        'ui-config': Config,
+        'ui-chart-page': ChartPage
     },
     computed: {
         runsItems() {
-            let runsArray = this.data.get('runsArray') || [];
+            let runsArray = this.runsArray || [];
             return runsArray.map(item => {
                 return {
                     name: item,
@@ -49,7 +50,7 @@ export default {
             });
         },
         tagsList() {
-            let tags = this.data.get('tags');
+            let tags = this.tags;
 
             let runs = Object.keys(tags);
             let tagsArray = runs.map(run => Object.keys(tags[run]));
@@ -62,7 +63,7 @@ export default {
                         run,
                         tag: tags[run][tag]
                     };
-                });
+                }).filter(item => item.tag !== undefined);
                 return {
                     tagList,
                     tag,
@@ -71,7 +72,7 @@ export default {
             });
         },
         groupedTags() {
-            let tagsList = this.data.get('tagsList') || [];
+            let tagsList = this.tagsList || [];
             // put data in group
             let groupData = {};
             tagsList.forEach(item => {
@@ -95,7 +96,7 @@ export default {
             });
         }
     },
-    initData() {
+    data() {
         return {
             runsArray: [],
             tags: [],
@@ -105,39 +106,47 @@ export default {
                 chartType: 'offset',
                 runs: [],
                 running: true
-            }
+            },
+            filteredTagsList: []
         };
     },
-    inited() {
+    created() {
         getPluginHistogramsTags().then(({errno, data}) => {
-            this.data.set('tags', data);
-
+            this.tags = data
             // filter when inited
-            let groupNameReg = this.data.get('config.groupNameReg');
+            let groupNameReg = this.config.groupNameReg;
             this.filterTagsList(groupNameReg);
         });
         getRuns().then(({errno, data}) => {
-            this.data.set('runsArray', data);
-            this.data.set('config.runs', data);
+            this.runsArray = data
+            this.config.runs = data
         });
-
-        // Need debounce, can't use computed
-        this.watch('config.groupNameReg', debounce(this.filterTagsList, 300));
     },
 
-    attached() {
+    mounted() {
         autoAdjustHeight();
     },
-
-    filterTagsList(groupNameReg) {
-        if (!groupNameReg) {
-            this.data.set('filteredTagsList', []);
-            return;
+    watch: {
+        'config.groupNameReg': function(val) {
+            this.throttledFilterTagsList()
         }
-        let tagsList = this.data.get('tagsList') || [];
-        let regExp = new RegExp(groupNameReg);
-        let filtedTagsList = tagsList.filter(item => regExp.test(item.tag));
-        this.data.set('filteredTagsList', filtedTagsList);
+    },
+    methods: {
+        filterTagsList(groupNameReg) {
+            if (!groupNameReg) {
+                this.filteredTagsList = []
+                return;
+            }
+            let tagsList = this.tagsList || [];
+            let regExp = new RegExp(groupNameReg);
+            let filtedTagsList = tagsList.filter(item => regExp.test(item.tag));
+            this.filteredTagsList = filtedTagsList
+        },
+        throttledFilterTagsList: _.debounce(
+            function() {
+                this.filterTagsList(this.config.groupNameReg)
+            }, 300
+        ),
     }
 };
 

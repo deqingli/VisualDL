@@ -1,12 +1,11 @@
-import os
+from __future__ import print_function
 import random
 import subprocess
-import sys
-import tempfile
+import six
 
 
 def crepr(v):
-    if type(v) is str or type(v) is unicode:
+    if type(v) is six.text_type:
         return '"%s"' % v
     return str(v)
 
@@ -28,7 +27,7 @@ class Rank(object):
             return ''
 
         return '{' + 'rank={};'.format(self.kind) + \
-                ','.join([node.name for node in self.nodes]) + '}'
+               ','.join([node.name for node in self.nodes]) + '}'
 
 
 # the python package graphviz is too poor.
@@ -198,5 +197,5 @@ if __name__ == '__main__':
     add_edge(n0, n2)
     add_edge(n1, n2)
 
-    print g_graph.code()
+    print(g_graph.code())
     g_graph.display('./1.dot')

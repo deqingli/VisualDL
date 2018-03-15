@@ -1,11 +1,12 @@
+from __future__ import absolute_import
 import unittest
 
-import graph
+from . import graph
 
 
 class GraphTest(unittest.TestCase):
     def setUp(self):
-        self.mock_dir = "./mock"
+        self.mock_dir = "./visualdl/server/mock"
 
     def test_graph_edges_squeezenet(self):
         json_obj = graph.to_IR_json(self.mock_dir + '/squeezenet_model.pb')
@@ -28,7 +29,8 @@ class GraphTest(unittest.TestCase):
 
         # label_100: (in-edge)
         # {u'source': u'fire6/squeeze1x1_1', u'target': u'node_34', u'label': u'label_100'}
-        self.assertEqual(json_obj['edges'][100]['source'], 'fire6/squeeze1x1_1')
+        self.assertEqual(json_obj['edges'][100]['source'],
+                         'fire6/squeeze1x1_1')
         self.assertEqual(json_obj['edges'][100]['target'], 'node_34')
         self.assertEqual(json_obj['edges'][100]['label'], 'label_100')
 

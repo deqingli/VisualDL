@@ -3,10 +3,10 @@ from __future__ import absolute_import
 import os
 import sys
 from distutils.spawn import find_executable
-from distutils import sysconfig, dep_util, log
+from distutils import log
 import setuptools.command.build_py
 import setuptools
-from setuptools import setup, find_packages
+from setuptools import setup, Extension
 import subprocess
 
 TOP_DIR = os.path.realpath(os.path.dirname(__file__))
@@ -26,8 +26,9 @@ def readlines(name):
 VERSION_NUMBER = read('VERSION_NUMBER')
 LICENSE = readlines('LICENSE')[0].strip()
 
+# use memcache to reduce disk read frequency.
 install_requires = ['Flask', 'numpy', 'Pillow', 'protobuf', 'scipy']
-execute_requires = ['npm', 'node', 'bash']
+execute_requires = ['npm', 'node', 'bash', 'cmake', 'unzip']
 
 
 def die(msg):
@@ -57,9 +58,12 @@ class BaseCommand(setuptools.Command):
 class build_py(setuptools.command.build_py.build_py):
     def run(self):
         cmd = ['bash', 'build.sh']
+        env = dict(os.environ)
         if MODE == "travis-CI":
             cmd.append('travis-CI')
-        subprocess.check_call(cmd)
+        if sys.version_info[0] >= 3:
+            env["WITH_PYTHON3"] = "ON"
+        subprocess.check_call(cmd, env=env)
         return setuptools.command.build_py.build_py.run(self)
 
 
@@ -75,26 +79,22 @@ packages = [
     'visualdl.server.onnx',
 ]
 
-datas = []
-data_root = os.path.join(TOP_DIR, 'visualdl/server/dist')
-for root, dirs, files in os.walk(data_root):
-    for filename in files:
-        path = 'dist/'+os.path.join(root, filename)[len(data_root)+1:]
-        datas.append(path)
-print datas
-
 setup(
     name="visualdl",
     version=VERSION_NUMBER,
-    author="PaddlePaddle and Echarts team.",
-    description="Visualize Deep Learning.",
+    author="PaddlePaddle and Echarts team",
+    description="Visualize Deep Learning",
     license=LICENSE,
     keywords="visualization deeplearning",
     long_description=read('README.md'),
     install_requires=install_requires,
-    package_data={'visualdl.server': datas,
-                  'visualdl':['core.so'],
-                  'visualdl.python':['core.so', 'dog.jpg']},
+    package_data={
+        'visualdl.server':
+        ['dist/*.js', 'dist/*.html', 'dist/fonts/*', 'dist/assets/*'],
+        'visualdl': ['core.so'],
+        'visualdl.python': ['core.so', 'dog.jpg']
+    },
     packages=packages,
-    scripts=['visualdl/server/visualDL', 'demo/vdl_scratch.py'],
+    ext_modules=[Extension('_foo', ['stub.cc'])],
+    scripts=['visualdl/server/visualDL', 'demo/vdl_create_scratch_log'],
     cmdclass=cmdclass)
